@@ -76,31 +76,9 @@ export default function TileDesignPlatform() {
   const [generatedImages, setGeneratedImages] = useState<GeneratedImage[]>([]);
   const [aspectRatio, setAspectRatio] = useState("1:1");
   const [imageSize, setImageSize] = useState("1K");
-  const [hasApiKey, setHasApiKey] = useState(false);
-  
+  const [expandedImage, setExpandedImage] = useState<string | null>(null);
+
   const chatEndRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
-
-  useEffect(() => {
-    checkApiKey();
-  }, []);
-
-  const checkApiKey = async () => {
-    if (typeof window !== 'undefined' && window.aistudio) {
-      const selected = await window.aistudio.hasSelectedApiKey();
-      setHasApiKey(selected);
-    }
-  };
-
-  const handleOpenKeySelector = async () => {
-    if (typeof window !== 'undefined' && window.aistudio) {
-      await window.aistudio.openSelectKey();
-      setHasApiKey(true);
-    }
-  };
 
   const sendMessage = async () => {
     if (!input.trim() || isLoading) return;
@@ -186,7 +164,22 @@ export default function TileDesignPlatform() {
       setIsGeneratingImage(false);
     }
   };
-
+  const handleDownload = async (url: string, prompt: string) => {
+    try {
+      const response = await fetch(url);
+      const blob = await response.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = `tile-design.png`; // ชื่อไฟล์ตอนโหลด
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(blobUrl);
+    } catch (e) {
+      console.error("ดาวน์โหลดล้มเหลว", e);
+    }
+  };
   return (
     <div className="flex h-screen overflow-hidden">
       {/* Sidebar - Chat & Controls */}
@@ -202,15 +195,7 @@ export default function TileDesignPlatform() {
             </div>
           </div>
           
-          {!hasApiKey && (
-            <button 
-              onClick={handleOpenKeySelector}
-              className="w-full mt-4 py-2 px-4 bg-amber-50 border border-amber-200 rounded-lg text-amber-800 text-xs font-medium flex items-center justify-center gap-2 hover:bg-amber-100 transition-colors"
-            >
-              <AlertCircle size={14} />
-              เลือก API Key เพื่อสร้างภาพ
-            </button>
-          )}
+
         </header>
 
         {/* Chat Messages */}
@@ -358,6 +343,7 @@ export default function TileDesignPlatform() {
                     <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-4">
                         {/* เพิ่ม aria-label และ title เข้าไปที่ปุ่มขยาย */}
                         <button 
+                          onClick={() => setExpandedImage(img.url)} 
                           aria-label="ขยายรูปภาพ" 
                           title="ขยายรูปภาพ" 
                           className="p-3 bg-white rounded-full text-black hover:scale-110 transition-transform shadow-lg"
@@ -367,6 +353,7 @@ export default function TileDesignPlatform() {
                         
                         {/* เพิ่ม aria-label และ title เข้าไปที่ปุ่มดาวน์โหลด */}
                         <button 
+                          onClick={() => handleDownload(img.url, img.prompt)} 
                           aria-label="ดาวน์โหลดรูปภาพ" 
                           title="ดาวน์โหลดรูปภาพ" 
                           className="p-3 bg-white rounded-full text-black hover:scale-110 transition-transform shadow-lg"
@@ -403,6 +390,23 @@ export default function TileDesignPlatform() {
                 </p>
               </div>
             )}
+            {/* ระบบโชว์รูปเต็มจอ */}
+          {expandedImage && (
+            <div 
+              className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
+              onClick={() => setExpandedImage(null)}
+            >
+              <div className="relative max-w-4xl w-full max-h-[90vh] flex justify-center">
+                <img src={expandedImage} alt="Expanded" className="max-w-full max-h-[90vh] object-contain rounded-xl shadow-2xl" />
+                <button 
+                  className="absolute -top-4 -right-4 bg-white text-black rounded-full p-2 hover:bg-red-500 hover:text-white transition-colors"
+                  onClick={() => setExpandedImage(null)}
+                >
+                  ปิด (X)
+                </button>
+              </div>
+            </div>
+          )}
           </div>
         </div>
       </main>
