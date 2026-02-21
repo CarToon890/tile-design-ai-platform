@@ -113,7 +113,7 @@ export default function TileDesignPlatform() {
     try {
       const ai = new GoogleGenAI({ apiKey: process.env.NEXT_PUBLIC_GEMINI_API_KEY });
       const chat = ai.chats.create({
-        model: "gemini-3.1-pro-preview",
+        model: "gemini-3-flash-preview",
         config: { systemInstruction: SYSTEM_INSTRUCTION }
       });
 
@@ -124,7 +124,7 @@ export default function TileDesignPlatform() {
       }));
 
       const response = await ai.models.generateContent({
-        model: "gemini-3.1-pro-preview",
+        model: "gemini-3-flash-preview",
         contents: [
           ...history,
           { role: 'user', parts: [{ text: userMessage }] }
@@ -150,39 +150,29 @@ export default function TileDesignPlatform() {
     }
   };
 
+  // นำฟังก์ชันนี้กลับมาไว้ใน app/page.tsx เท่านั้นครับ!
   const handleGenerateImage = async (prompt: string) => {
-    if (!hasApiKey) {
-      setMessages(prev => [...prev, { role: 'model', text: "กรุณาเลือก API Key ก่อนเพื่อเริ่มการสร้างภาพครับ" }]);
-      return;
-    }
-
     setIsGeneratingImage(true);
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.NEXT_PUBLIC_GEMINI_API_KEY });
-      const response = await ai.models.generateContent({
-        model: 'gemini-3-pro-image-preview',
-        contents: {
-          parts: [{ text: prompt }],
+      // หน้าบ้านทำการยิงคำสั่งไปหาหลังบ้าน
+      const response = await fetch('/api/leonardo', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
         },
-        config: {
-          imageConfig: {
-            aspectRatio: aspectRatio as any,
-            imageSize: imageSize as any
-          }
-        },
+        body: JSON.stringify({ 
+          prompt: prompt,
+          aspectRatio: aspectRatio
+        }),
       });
 
-      let imageUrl = '';
-      for (const part of response.candidates?.[0]?.content?.parts || []) {
-        if (part.inlineData) {
-          imageUrl = `data:image/png;base64,${part.inlineData.data}`;
-          break;
-        }
-      }
+      if (!response.ok) throw new Error('ไม่สามารถสร้างภาพได้');
 
-      if (imageUrl) {
+      const data = await response.json();
+
+      if (data.imageUrl) {
         setGeneratedImages(prev => [{
-          url: imageUrl,
+          url: data.imageUrl,
           prompt,
           timestamp: Date.now(),
           aspectRatio,
@@ -190,13 +180,8 @@ export default function TileDesignPlatform() {
         }, ...prev]);
       }
     } catch (error: any) {
-      console.error("Image generation error:", error);
-      if (error.message?.includes("Requested entity was not found")) {
-        setHasApiKey(false);
-        setMessages(prev => [...prev, { role: 'model', text: "API Key ของคุณอาจไม่ถูกต้องหรือไม่มีสิทธิ์ใช้งาน กรุณาเลือกใหม่อีกครั้งครับ" }]);
-      } else {
-        setMessages(prev => [...prev, { role: 'model', text: "ขออภัยครับ ไม่สามารถสร้างภาพได้ในขณะนี้" }]);
-      }
+      console.error("Error:", error);
+      setMessages(prev => [...prev, { role: 'model', text: "ขออภัยครับ ไม่สามารถสร้างภาพได้ในขณะนี้" }]);
     } finally {
       setIsGeneratingImage(false);
     }
@@ -283,7 +268,7 @@ export default function TileDesignPlatform() {
             </button>
           </div>
           <p className="mt-2 text-[10px] text-center text-black/40">
-            * Gemini 3.1 Pro Intelligence | Ceramic Factory Logic Applied
+            * Gemini 3 Flash Preview Intelligence | Ceramic Factory Logic Applied
           </p>
         </footer>
       </aside>
@@ -351,7 +336,7 @@ export default function TileDesignPlatform() {
               <div className="aspect-square bg-white rounded-[32px] shadow-sm border border-black/5 flex flex-col items-center justify-center p-8 text-center animate-pulse">
                 <Loader2 className="animate-spin text-[#5A5A40] mb-4" size={48} />
                 <p className="font-display text-lg font-bold">กำลังรังสรรค์ลวดลาย...</p>
-                <p className="text-sm text-black/40 mt-2">Gemini 3 Pro Image Preview is working</p>
+                <p className="text-sm text-black/40 mt-2">Leonardo</p>
               </div>
             )}
 
@@ -371,13 +356,24 @@ export default function TileDesignPlatform() {
                       className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
                     />
                     <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-4">
-                      <button className="p-3 bg-white rounded-full text-black hover:scale-110 transition-transform shadow-lg">
-                        <Maximize2 size={20} />
-                      </button>
-                      <button className="p-3 bg-white rounded-full text-black hover:scale-110 transition-transform shadow-lg">
-                        <Download size={20} />
-                      </button>
-                    </div>
+                        {/* เพิ่ม aria-label และ title เข้าไปที่ปุ่มขยาย */}
+                        <button 
+                          aria-label="ขยายรูปภาพ" 
+                          title="ขยายรูปภาพ" 
+                          className="p-3 bg-white rounded-full text-black hover:scale-110 transition-transform shadow-lg"
+                        >
+                          <Maximize2 size={20} />
+                        </button>
+                        
+                        {/* เพิ่ม aria-label และ title เข้าไปที่ปุ่มดาวน์โหลด */}
+                        <button 
+                          aria-label="ดาวน์โหลดรูปภาพ" 
+                          title="ดาวน์โหลดรูปภาพ" 
+                          className="p-3 bg-white rounded-full text-black hover:scale-110 transition-transform shadow-lg"
+                        >
+                          <Download size={20} />
+                        </button>
+                      </div>
                   </div>
                   <div className="p-6">
                     <div className="flex items-center justify-between mb-3">
